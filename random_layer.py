@@ -36,6 +36,7 @@ __all__ = ['RandomLayer',
 
 
 class BaseRandomLayer(BaseEstimator, TransformerMixin):
+
     """Abstract Base Class for random  layers"""
     __metaclass__ = ABCMeta
 
@@ -139,6 +140,7 @@ class BaseRandomLayer(BaseEstimator, TransformerMixin):
 
 
 class RandomLayer(BaseRandomLayer):
+
     """RandomLayer is a transformer that creates a feature mapping of the
     inputs that corresponds to a layer of hidden units with randomly
     generated components.
@@ -223,7 +225,7 @@ class RandomLayer(BaseRandomLayer):
     _inv_tribas = (lambda x: np.clip(np.fabs(x), 0.0, 1.0))
 
     # sigmoid activation function
-    _sigmoid = (lambda x: 1.0/(1.0 + np.exp(-x)))
+    _sigmoid = (lambda x: 1.0 / (1.0 + np.exp(-x)))
 
     # hard limit activation function
     _hardlim = (lambda x: np.array(x > 0.0, dtype=float))
@@ -239,7 +241,9 @@ class RandomLayer(BaseRandomLayer):
 
     # inverse multiquadric RBF
     _inv_multiquadric = (lambda x:
-                         1.0/(np.sqrt(1.0 + pow(x, 2.0))))
+                         1.0 / (np.sqrt(1.0 + pow(x, 2.0))))
+
+    _linear_rectifier = (lambda x: x * (x > 0))
 
     # internal activation function table
     _internal_activation_funcs = {'sine': np.sin,
@@ -252,6 +256,7 @@ class RandomLayer(BaseRandomLayer):
                                   'gaussian': _gaussian,
                                   'multiquadric': _multiquadric,
                                   'inv_multiquadric': _inv_multiquadric,
+                                  '_linear_rectifier': _linear_rectifier,
                                   }
 
     def __init__(self, n_hidden=20, alpha=0.5, random_state=None,
@@ -295,7 +300,7 @@ class RandomLayer(BaseRandomLayer):
 
             n_centers = centers.shape[0]
             max_dist = np.max(pairwise_distances(centers))
-            radii = np.ones(n_centers) * max_dist/sqrt(2.0 * n_centers)
+            radii = np.ones(n_centers) * max_dist / sqrt(2.0 * n_centers)
 
         self.components_['radii'] = radii
 
@@ -382,12 +387,13 @@ class RandomLayer(BaseRandomLayer):
             radii = self.components_['radii']
             centers = self.components_['centers']
             scale = self.rbf_width * (1.0 - self.alpha)
-            rbf_acts = scale * cdist(X, centers)/radii
+            rbf_acts = scale * cdist(X, centers) / radii
 
         self.input_activations_ = mlp_acts + rbf_acts
 
 
 class MLPRandomLayer(RandomLayer):
+
     """Wrapper for RandomLayer with alpha (mixing coefficient) set
        to 1.0 for MLP activations only"""
 
@@ -405,6 +411,7 @@ class MLPRandomLayer(RandomLayer):
 
 
 class RBFRandomLayer(RandomLayer):
+
     """Wrapper for RandomLayer with alpha (mixing coefficient) set
        to 0.0 for RBF activations only"""
 
@@ -423,6 +430,7 @@ class RBFRandomLayer(RandomLayer):
 
 
 class GRBFRandomLayer(RBFRandomLayer):
+
     """Random Generalized RBF Hidden Layer transformer
 
     Creates a layer of radial basis function units where:
@@ -511,15 +519,15 @@ class GRBFRandomLayer(RBFRandomLayer):
         centers = self.components_['centers']
         sorted_distances = np.sort(squareform(pdist(centers)))
         self.dF_vals = sorted_distances[:, -1]
-        self.dN_vals = sorted_distances[:, 1]/100.0
-        #self.dN_vals = 0.0002 * np.ones(self.dF_vals.shape)
+        self.dN_vals = sorted_distances[:, 1] / 100.0
+        # self.dN_vals = 0.0002 * np.ones(self.dF_vals.shape)
 
         tauNum = np.log(np.log(self.grbf_lambda) /
                         np.log(1.0 - self.grbf_lambda))
 
-        tauDenom = np.log(self.dF_vals/self.dN_vals)
+        tauDenom = np.log(self.dF_vals / self.dN_vals)
 
-        self.tau_vals = tauNum/tauDenom
+        self.tau_vals = tauNum / tauDenom
 
         self._extra_args['taus'] = self.tau_vals
 
@@ -527,5 +535,5 @@ class GRBFRandomLayer(RBFRandomLayer):
     def _compute_radii(self):
         """Generate radii"""
 
-        denom = pow(-np.log(self.grbf_lambda), 1.0/self.tau_vals)
-        self.components_['radii'] = self.dF_vals/denom
+        denom = pow(-np.log(self.grbf_lambda), 1.0 / self.tau_vals)
+        self.components_['radii'] = self.dF_vals / denom
